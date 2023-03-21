@@ -2,5 +2,4 @@
 /venv
 .env
 .db
-.json
-quickstart.py
+/google
