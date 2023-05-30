@@ -3,15 +3,16 @@ import logging
 from os import getenv
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
 from aiogram import Bot, Dispatcher
 
-from handlers import worker, admin
-
+from models.models import Base
+from handlers import worker, admin, anonymous
+from engine import engine
 
 load_dotenv()
 
 TOKEN = getenv("TOKEN")
+bot = Bot(token=TOKEN)
 
 
 async def main():
@@ -20,13 +21,15 @@ async def main():
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     )
 
-    engine = create_engine('sqlite:///sqlite.db')
-    engine.connect()
+    Base.metadata.create_all(engine)
+    worker.workers()
 
-    bot = Bot(token=TOKEN)
     dp = Dispatcher()
     dp.include_router(admin.router)
     dp.include_router(worker.router)
+    dp.include_router(anonymous.router)
+
+    anonymous.get_workers(anonymous.workers_id)
 
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
