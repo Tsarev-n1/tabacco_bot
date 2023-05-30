@@ -70,6 +70,8 @@ class Delay(Base):
     description = Column(String(100))
     shop_id = Column(Integer(), ForeignKey('shops.id'), nullable=False)
     shop = relationship('Shop', backref='delays')
+    workshift_id = Column(Integer(), ForeignKey('work_shifts.id'),
+                          nullable=False)
 
 
 class Spending(Base):
@@ -79,7 +81,7 @@ class Spending(Base):
     user_id = Column(Integer(), ForeignKey('users.id'))
     user = relationship('User', backref='spendings')
     date = Column(DateTime(), default=datetime.now())
-    photo_id = Column(String(), nullable=False, unique=True)
+    photo = Column(String(), nullable=False, unique=True)
     money_spent = Column(Integer(), nullable=False)
     shop_id = Column(Integer(), ForeignKey('shops.id'), nullable=False)
     shop = relationship('Shop', backref='spendings')

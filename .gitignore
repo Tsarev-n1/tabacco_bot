@@ -3,3 +3,5 @@
 .env
 .db
 /google
+/__pycache__
+.__pycache__

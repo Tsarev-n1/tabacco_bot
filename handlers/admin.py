@@ -17,7 +17,7 @@ from models.models import Shop, WorkShift, City, User, Defective
 from engine import engine
 
 
-#admins = {6215929408}
+# admins = {6215929408}
 admins = {}
 
 Session = sessionmaker(bind=engine)

@@ -22,6 +22,7 @@ async def main():
     )
 
     Base.metadata.create_all(engine)
+
     worker.workers()
 
     dp = Dispatcher()

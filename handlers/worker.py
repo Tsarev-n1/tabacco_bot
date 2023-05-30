@@ -1,7 +1,7 @@
 import datetime as dt
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
 from sqlalchemy.orm import sessionmaker
 
@@ -9,15 +9,15 @@ from keyboards.keyboards import (
     menu_button,
     inline_menu,
 )
-from .states import DefectiveProduct, Spendings, WorkshiftState
+from .states import DefectiveProduct, SpendingsState, WorkshiftState, OrderState
 from .anonymous import workers_id
-from models.models import User, WorkShift, Defective
+from models.models import User, WorkShift, Defective, Spending
 from engine import engine
 
 
 router = Router()
 router.message.filter(F.chat.id.in_(workers_id))
-router.callback_query.filter(F.chat.id.in_(workers_id))
+router.callback_query.filter(F.message.chat.id.in_(workers_id))
 
 Session = sessionmaker(bind=engine)
 
@@ -166,17 +166,17 @@ async def product_id(message: Message, state: FSMContext):
     await state.clear()
 
 
-@router.message(Command('spendings'))
-async def spendings(message: Message, state: FSMContext):
+@router.callback_query(F.data == 'spendings')
+async def spendings(callback: CallbackQuery, state: FSMContext):
     """Траты"""
 
-    await message.answer(
+    await callback.message.answer(
         'На что потрачено?'
     )
-    await state.set_state(Spendings.purchaises)
+    await state.set_state(SpendingsState.purchaises)
 
 
-@router.message(Spendings.purchaises, F.text)
+@router.message(SpendingsState.purchaises, F.text)
 async def purchaises(message: Message, state: FSMContext):
     """Получение списка трат"""
 
@@ -184,11 +184,11 @@ async def purchaises(message: Message, state: FSMContext):
     await message.answer(
         'Сколько потрачено рублей'
     )
-    await state.set_state(Spendings.money_spent)
+    await state.set_state(SpendingsState.money_spent)
 
 
 @router.message(
-    Spendings.money_spent,
+    SpendingsState.money_spent,
     F.text.func(lambda text: int(text) > 0)
 )
 async def money_spent(message: Message, state: FSMContext):
@@ -198,10 +198,10 @@ async def money_spent(message: Message, state: FSMContext):
     await message.answer(
         'Пришлите фото чека'
     )
-    await state.set_state(Spendings.cash_receipt)
+    await state.set_state(SpendingsState.cash_receipt)
 
 
-@router.message(Spendings.cash_receipt, F.photo)
+@router.message(SpendingsState.cash_receipt, F.photo)
 async def cash_receipt(message: Message, state: FSMContext):
     """Получение фото чека"""
 
@@ -211,7 +211,7 @@ async def cash_receipt(message: Message, state: FSMContext):
     with Session() as sess:
         user = sess.query(User).filter(User.telegram_id == message.chat.id)\
             .first()
-        spent = Spendings(
+        spent = Spending(
             description=data['description'],
             photo=data['photo'],
             money_spent=data['money'],
@@ -229,4 +229,28 @@ async def cash_receipt(message: Message, state: FSMContext):
 @router.callback_query(F.data == 'order')
 async def order(callback: CallbackQuery, state: FSMContext):
     """Запрос на заказ товара"""
+    await callback.message.answer(
+        'Что необходимо заказать?'
+    )
+    await state.set_state(OrderState.product)
+
+
+@router.message(F.text, OrderState.product)
+async def order_product(message: Message, state: FSMContext):
+    """Именование товара для заказа"""
+
+    await state.update_data(product=message.text)
+    await message.answer(
+        'В каком количестве?'
+    )
+    await state.set_state(OrderState.count)
+
+
+@router.message(F.text, OrderState.count)
+async def order_count(message: Message, state: FSMContext):
+    """Количество товара"""
+
+    await state.update_data(count=message.text)
+    data = await state.get_data()
+    # Отправить данные сразу в гугл таблицы
     pass

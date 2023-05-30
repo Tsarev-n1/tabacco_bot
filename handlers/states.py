@@ -7,7 +7,7 @@ class DefectiveProduct(StatesGroup):
     product_id = State()
 
 
-class Spendings(StatesGroup):
+class SpendingsState(StatesGroup):
     purchaises = State()
     money_spent = State()
     cash_receipt = State()
@@ -36,3 +36,8 @@ class CityState(StatesGroup):
 
 class AdminState(StatesGroup):
     message = State()
+
+
+class OrderState(StatesGroup):
+    product = State()
+    count = State()
