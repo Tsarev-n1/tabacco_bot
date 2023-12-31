@@ -31,7 +31,7 @@ protobuf==4.22.0
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pycodestyle==2.10.0
-pydantic==1.10.5
+pydantic==1.10.7
 pyflakes==3.0.1
 pyparsing==3.0.9
 python-dotenv==1.0.0

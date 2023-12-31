@@ -1,40 +1,40 @@
 import datetime as dt
+
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, joinedload
+from sqlalchemy.ext.asyncio import AsyncSession
+
 
 from keyboards.keyboards import (
     menu_button,
     inline_menu,
+    workshift_apply_keyboard,
+    order_keyboard,
+    order_category_keyboard
 )
-from .states import DefectiveProduct, SpendingsState, WorkshiftState, OrderState
+from .states import (DefectiveProduct, SpendingsState,
+                     WorkshiftState, OrderState)
 from .anonymous import workers_id
-from models.models import User, WorkShift, Defective, Spending
-from engine import engine
+from models.models import User, WorkShift, Defective, Spending, Delay, \
+    Shop
+from engine import async_engine
+from sheets.actions import workshift_open
+from bot import bot
 
 
 router = Router()
 router.message.filter(F.chat.id.in_(workers_id))
 router.callback_query.filter(F.message.chat.id.in_(workers_id))
 
-Session = sessionmaker(bind=engine)
-
-
-def workers():
-    with Session() as session:
-        users = session.query(User.telegram_id).all()
-        global workers_id
-        workers_id = set(users)
-
-
-def check_registration(chat_id):
-    """Проверка регистрации в БД"""
-    with Session() as session:
-        user = session.query(User)\
-               .filter(User.telegram_id == chat_id).first()
-        return True if user else False
+async_session = sessionmaker(
+    bind=async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    future=True
+)
 
 
 @router.message(CommandStart())
@@ -74,7 +74,7 @@ async def open(callback: CallbackQuery, state: FSMContext):
         'Пришлите фото'
     )
     direction = callback.data.split('_')[1]
-    await state.update_data(status=direction)
+    await state.set_data(status=direction)
     await state.set_state(WorkshiftState.shift)
 
 
@@ -85,26 +85,82 @@ async def open_photo(message: Message, state: FSMContext):
     status = True if data['status'] == 'open' else False
     reply_status = 'открыта' if status else 'закрыта'
     photo = message.photo[-1].file_id
-    with Session() as sess:
-        user = sess.query(User).filter(User.telegram_id == message.chat.id)\
+    async with async_session() as sess:
+        user = await sess.execute(User) \
+            .filter(User.telegram_id == message.chat.id) \
             .first()
-        sess.add(
-            WorkShift(
-                user_id=user.id,
+        workshift = WorkShift(
+                user=user,
                 photo=photo,
                 status='open' if status else 'close',
-                date=dt.datetime.now(),
-                # Добавить проверку по shop_id
-                shop_id='123'
+                shop_id=user.shop_id
             )
-        )
+        shop = await sess.execute(Shop) \
+            .filter(Shop.id == user.shop_id).first()
+        sess.add(workshift)
         sess.commit()
+        if status and message.date.time() > dt.time(hour=10):
+            delay = Delay(
+                user=user,
+                shop=user.shop,
+                workshift_id=workshift.id,
+                description=f'@{user.telegram_username} открыл смену в '
+                f'{message.date.time()}'
+            )
+            sess.add(delay)
+            sess.commit()
     await message.reply(
         f'Смена {reply_status} \n'
         f'{message.date.time()} \n'
         f'{message.date.date()}'
     )
-    await state.clear()
+    if status:
+        workshift_open(user, shop.wokrsheet, status)
+        await state.clear()
+    else:
+        await message.reply(
+            'Выручка?'
+        )
+        await state.update_data(user=user, sheet_id=shop.wokrsheet)
+        await state.set_state(WorkshiftState.earnings)
+
+
+@router.message(WorkshiftState.earnings, F.regexp(r'\d+'))
+async def workshift_earnings(state: FSMContext, message: Message):
+    """Получение прибыли при закрытии смены"""
+
+    # При желании добавить в опоздания раннее закрытие
+    earnings = int(message.text)
+    await state.update_data(earnings=earnings)
+
+    await message.reply(
+        f'Смена закрыта!\n'
+        f'Выручка составила {earnings}\n'
+        f'Все верно?',
+        reply_markup=workshift_apply_keyboard()
+    )
+    await state.set_state(WorkshiftState.change)
+
+
+@router.callback_query(F.data.startswith('earnings'), WorkshiftState.change)
+async def workshift_apply(state: FSMContext, callback: CallbackQuery):
+    """Прием/Изменение прибыли"""
+    status = callback.data.split('_')[1]
+    data = await state.get_data()
+    user = data.get('user')
+    sheet_id = data.get('sheet_id')
+    if status == 'apply':
+        earnings = data.get('earnings')
+        workshift_open(
+            user=user, sheet_id=sheet_id,
+            open=False, money=earnings
+        )
+        await state.clear()
+    else:
+        await callback.answer(
+            'Введите новую сумму!'
+        )
+        await state.set_state(WorkshiftState.earnings)
 
 
 @router.callback_query(F.data == 'defective')
@@ -148,8 +204,8 @@ async def product_id(message: Message, state: FSMContext):
 
     await state.update_data(article=int(message.text))
     data = await state.get_data()
-    with Session() as sess:
-        user = sess.query(User).filter(User.telegram_id == message.chat.id)\
+    async with async_session() as sess:
+        user = await sess.execute(User).filter(User.telegram_id == message.chat.id)\
             .first()
         defective_item = Defective(
             name=data['name'],
@@ -208,8 +264,8 @@ async def cash_receipt(message: Message, state: FSMContext):
     photo = message.photo[-1].file_id
     await state.update_data(photo=photo)
     data = await state.get_data()
-    with Session() as sess:
-        user = sess.query(User).filter(User.telegram_id == message.chat.id)\
+    async with async_session() as sess:
+        user = await sess.execute(User).filter(User.telegram_id == message.chat.id)\
             .first()
         spent = Spending(
             description=data['description'],
@@ -230,27 +286,63 @@ async def cash_receipt(message: Message, state: FSMContext):
 async def order(callback: CallbackQuery, state: FSMContext):
     """Запрос на заказ товара"""
     await callback.message.answer(
-        'Что необходимо заказать?'
+        'Что необходимо заказать?',
+        reply_markup=order_keyboard()
     )
     await state.set_state(OrderState.product)
 
 
-@router.message(F.text, OrderState.product)
-async def order_product(message: Message, state: FSMContext):
-    """Именование товара для заказа"""
-
-    await state.update_data(product=message.text)
-    await message.answer(
-        'В каком количестве?'
+@router.callback_query(
+    F.data.startswith('order_category'),
+    OrderState.product
+)
+async def order_current(callback: CallbackQuery, state: FSMContext):
+    """Выбор товара из категории"""
+    key = int(callback.data.split('=')[1])
+    async with async_session() as sess:
+        user = await sess.execute(User) \
+            .filter(User.telegram_id == callback.from_user.id) \
+            .options(joinedload(User.shop)).first()
+        shop = user.shop
+    await bot.edit_message_text(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        text='Выберите продукт',
+        reply_markup=order_category_keyboard(key, shop.worksheet)
     )
-    await state.set_state(OrderState.count)
+    # await state.set_state(OrderState.count)
+    # переход в другой state после нажатия кнопки добавить новый
 
 
-@router.message(F.text, OrderState.count)
+@router.callback_query(F.data == 'order_name')
+async def order_name(callback: CallbackQuery):
+    """Добавление нового заказа"""
+    pass
+
+
+@router.callback_query(F.data == 'order_create')
+async def order_create(callback: CallbackQuery, state: FSMContext):
+    """Добавление нового заказа"""
+    await bot.edit_message_text(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        text='Название продукта.'
+    )
+    await state.set_state(OrderState.create_order())
+
+
+@router.message(OrderState.create_order, F.text)
+async def order_name(message: Message, state: FSMContext):
+    """Создание заказа"""
+    pass
+
+
+@router.callback_query(F.data.startswith('order_'), OrderState.count)
 async def order_count(message: Message, state: FSMContext):
     """Количество товара"""
 
     await state.update_data(count=message.text)
     data = await state.get_data()
     # Отправить данные сразу в гугл таблицы
+    # Покрасить в цвет таблицы, добавить строку в случае чего
     pass

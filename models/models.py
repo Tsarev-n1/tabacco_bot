@@ -34,6 +34,7 @@ class Shop(Base):
     terminal_id = Column(String(), nullable=False, unique=True)
     city_id = Column(Integer(), ForeignKey('cities.id'), nullable=False)
     city = relationship('City', backref='shops')
+    wokrsheet = Column(String(), unique=True)
 
 
 class Defective(Base):
@@ -47,6 +48,7 @@ class Defective(Base):
     date = Column(Date(), default=date.today())
     shop_id = Column(Integer(), ForeignKey('shops.id'), nullable=False)
     shop = relationship('Shop', backref='defective_items')
+    # viewed = Column(Boolean(), default=False)
 
 
 class WorkShift(Base):
@@ -59,6 +61,7 @@ class WorkShift(Base):
     date = Column(DateTime(), default=datetime.now())
     shop_id = Column(Integer(), ForeignKey('shops.id'), nullable=False)
     shop = relationship('Shop', backref='work_shifts')
+    # viewed = Column(Boolean(), default=False)
 
 
 class Delay(Base):
@@ -72,6 +75,7 @@ class Delay(Base):
     shop = relationship('Shop', backref='delays')
     workshift_id = Column(Integer(), ForeignKey('work_shifts.id'),
                           nullable=False)
+    # viewed = Column(Boolean(), default=False)
 
 
 class Spending(Base):
@@ -85,3 +89,4 @@ class Spending(Base):
     money_spent = Column(Integer(), nullable=False)
     shop_id = Column(Integer(), ForeignKey('shops.id'), nullable=False)
     shop = relationship('Shop', backref='spendings')
+    # viewed = Column(Boolean(), default=False)

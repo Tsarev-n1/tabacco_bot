@@ -22,6 +22,9 @@ class Registration(StatesGroup):
 
 class WorkshiftState(StatesGroup):
     shift = State()
+    earnings = State()
+    apply = State()
+    change = State()
 
 
 class ShopState(StatesGroup):
@@ -41,3 +44,5 @@ class AdminState(StatesGroup):
 class OrderState(StatesGroup):
     product = State()
     count = State()
+    create_order = State()
+    current = State()

@@ -1,9 +1,7 @@
-.venv
 /venv
 .env
 .db
-/google
-/__pycache__
-.__pycache__
+*.json
+**/__pycache__
 /.vscode
-.vscode
+/test.py

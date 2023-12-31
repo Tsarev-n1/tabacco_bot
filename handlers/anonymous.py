@@ -2,12 +2,14 @@ from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import User
 from keyboards.keyboards import cities_inline, city_shops_inline, menu_button
 from .states import Registration
-from engine import engine
+from engine import async_engine, engine
 
 
 router = Router()
@@ -16,14 +18,22 @@ workers_id = set()
 router.message.filter(~F.chat.id.in_(workers_id))
 router.callback_query.filter(~F.message.chat.id.in_(workers_id))
 
-Session = sessionmaker(bind=engine)
+async_session = sessionmaker(
+    bind=async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    future=True
+)
+
+session = sessionmaker(engine)
 
 
-def get_workers(workers: set):
-    with Session() as sess:
-        users = sess.query(User).all()
+def get_workers() -> None:
+    global workers_id
+    with session() as sess:
+        users = sess.query(User)
         for user in users:
-            workers.add(user.telegram_id)
+            workers_id.add(user.telegram_id)
 
 
 @router.message(CommandStart())
@@ -79,17 +89,18 @@ async def city_shop(callback: CallbackQuery, state: FSMContext):
 async def shop(callback: CallbackQuery, state: FSMContext):
     """Получение города и завершение регистрации"""
     shop_id = callback.data.split('=')[1]
+    username = callback.message.chat.username
     user_data = await state.get_data()
-    with Session() as sess:
+    async with async_session() as sess:
         user = User(
             first_name=user_data['first_name'],
             second_name=user_data['second_name'],
-            telegram_username=callback.message.chat.username,
+            telegram_username=username if username else None,
             telegram_id=callback.message.chat.id,
             shop_id=shop_id
         )
-        sess.add(user)
-        sess.commit()
+        await sess.add(user)
+        await sess.commit()
     await callback.message.answer(
         'Регистрация завершена',
         reply_markup=menu_button()

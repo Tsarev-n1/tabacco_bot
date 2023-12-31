@@ -4,6 +4,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.orm import sessionmaker
 
 from engine import engine
+from sheets.actions import get_category_orders
+from sheets.sheets import products
 from models.models import Shop, City
 
 
@@ -24,7 +26,8 @@ admin_actions = {
     'Добавить город': 'add_city',
     'Дефекты': 'defective',
     'Добавить администратора': 'admin_add',
-    'Удалить администратора': 'admin_delete'
+    'Удалить администратора': 'admin_delete',
+    'Опоздания': 'delays'
 }
 
 Session = sessionmaker(bind=engine)
@@ -99,4 +102,57 @@ def cities_inline():
                 callback_data=f'city={city.id}'
             ))
     builder.adjust(1)
+    return builder.as_markup()
+
+
+def workshift_apply_keyboard():
+    """Подтверждение запроса"""
+    builder = InlineKeyboardBuilder()
+    builder.add(
+        InlineKeyboardButton(
+            text='Подтвердить!',
+            callback_data='earnings_apply'
+        ),
+        InlineKeyboardButton(
+            text='Изменить',
+            callback_data='earnings_change'
+        )
+    )
+    return builder.as_markup()
+
+
+def order_keyboard(products: dict = products):
+    """Клавиатура для выбора категории предзаказа"""
+    builder = InlineKeyboardBuilder()
+    for pos, category in enumerate(products):
+        builder.add(
+            InlineKeyboardButton(
+                text=category,
+                callback_data=f'order_category={pos}'
+            )
+        )
+    builder.adjust(1)
+    return builder.as_markup()
+    # Может добавить категории в модель магазина?
+
+
+def order_category_keyboard(key: int, sheet_id: str):
+    """Клавиатура выбора из конкретной категории"""
+
+    orders = get_category_orders(key, sheet_id)
+    builder = InlineKeyboardBuilder()
+    if orders:
+        for pos, order in enumerate(orders):
+            builder.add(
+                InlineKeyboardButton(
+                    text=order,
+                    callback_data=f'order_select={pos}'
+                )
+            )
+    builder.add(
+        InlineKeyboardButton(
+            text='Добавить новый!',
+            callback_data='order_create'
+        )
+    )
     return builder.as_markup()

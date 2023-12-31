@@ -23,14 +23,13 @@ async def main():
 
     Base.metadata.create_all(engine)
 
-    worker.workers()
-
     dp = Dispatcher()
     dp.include_router(admin.router)
     dp.include_router(worker.router)
     dp.include_router(anonymous.router)
 
-    anonymous.get_workers(anonymous.workers_id)
+    await anonymous.get_workers()
+    admin.get_admins()
 
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
