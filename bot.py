@@ -28,7 +28,7 @@ async def main():
     dp.include_router(worker.router)
     dp.include_router(anonymous.router)
 
-    await anonymous.get_workers()
+    anonymous.get_workers()
     admin.get_admins()
 
     await bot.delete_webhook(drop_pending_updates=True)
