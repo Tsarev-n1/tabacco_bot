@@ -90,13 +90,14 @@ async def opened(callback: CallbackQuery):
         )\
          .filter(WorkShift.date > dt.date.today())\
          .order_by(WorkShift.date)
-    for workshift in workshifts.all():
-        await callback.message.answer_photo(
-            caption=f'@{workshift.user.telegram_username} '
-                    f'{workshift_status[status]} смену в '
-                    f'{workshift.date}',
-            photo=workshift.photo,
-        )
+    if workshifts.all():
+        for workshift in workshifts:
+            await callback.message.answer_photo(
+                caption=f'@{workshift.user.telegram_username} '
+                        f'{workshift_status[status]} смену в '
+                        f'{workshift.date}',
+                photo=workshift.photo,
+            )
 
 
 @router.callback_query(F.data == 'spendings')
@@ -236,7 +237,8 @@ async def defevtive(callback: CallbackQuery):
             .filter(
                 Defective.date > (dt.date.today() - dt.timedelta(days=14))
             ).order_by(Defective.date)
-        for defective in items.all():
+    if items.all():
+        for defective in items:
             await callback.message.answer_video(
                 video=defective.video,
                 caption=f'@{defective.user.telegram_username}'
@@ -289,6 +291,7 @@ async def delays(callback: CallbackQuery):
         delays = await sess.execute(Delay, WorkShift).join(WorkShift)\
             .filter(Delay.date > (dt.datetime.now() - dt.timedelta(days=1)))\
             .filter(WorkShift.id == Delay.workshift_id)
+    if delays.all():
         for delay, workshift in delays:
             await callback.message.answer_photo(
                 caption=delay.description,

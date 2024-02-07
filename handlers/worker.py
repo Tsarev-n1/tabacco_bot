@@ -205,7 +205,8 @@ async def product_id(message: Message, state: FSMContext):
     await state.update_data(article=int(message.text))
     data = await state.get_data()
     async with async_session() as sess:
-        user = await sess.execute(User).filter(User.telegram_id == message.chat.id)\
+        user = await sess.execute(User) \
+            .filter(User.telegram_id == message.chat.id)\
             .first()
         defective_item = Defective(
             name=data['name'],
@@ -312,6 +313,7 @@ async def order_current(callback: CallbackQuery, state: FSMContext):
     )
     # await state.set_state(OrderState.count)
     # переход в другой state после нажатия кнопки добавить новый
+    #  TODO: Добавить выбор доп параметров, если они есть
 
 
 @router.callback_query(F.data == 'order_name')
@@ -343,6 +345,7 @@ async def order_count(message: Message, state: FSMContext):
 
     await state.update_data(count=message.text)
     data = await state.get_data()
+    #  TODO: при добавлении нового значения в категорию вызвать другую функцию
     # Отправить данные сразу в гугл таблицы
     # Покрасить в цвет таблицы, добавить строку в случае чего
     pass

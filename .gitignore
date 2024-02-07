@@ -4,5 +4,5 @@
 *.json
 **/__pycache__
 /.vscode
-/test.py
+test.py
 sqlite.db

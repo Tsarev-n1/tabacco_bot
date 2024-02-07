@@ -195,7 +195,8 @@ def create_work_schedule_sheet(sheet: gspread.Spreadsheet) -> None:
             TextFormat(bold=True)
         )
 
-        # Редактируем ячейки смены
+        #  Редактируем ячейки смены
+        #  TODO: Дописать редактор ячеек смен
         format_cell_range(
             worksheet,
             f'{get_char_by_index(row):3}'
@@ -215,7 +216,7 @@ def create_work_schedule_sheet(sheet: gspread.Spreadsheet) -> None:
                 worksheet.update_acell(f'{column}{row}', data[column])
                 row += 3
 
-        # Дописать формулы
+        #  TODO: Дописать формулы
         pass
 
 
@@ -248,8 +249,7 @@ def create_spendings_month(sheet: gspread.Spreadsheet, month: int = 1) -> None:
 
 def create_orders(sheet: gspread.Spreadsheet) -> None:
     """ Создание таблицы с предзаказами"""
-    # При добавлении редактировать новую строку под стиль мини-таблицы
-    # В случае чего добавить строку
+
     worksheet = sheet.add_worksheet(
         'Заказы на товар',
         cols=26,
@@ -279,5 +279,5 @@ def create_orders(sheet: gspread.Spreadsheet) -> None:
                 horizontalAlignment='CENTER'
             ),
             TextFormat(bold=True, fontSize=11),
-            cell_format=cell_range
+            name=cell_range
         )

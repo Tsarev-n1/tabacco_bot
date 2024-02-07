@@ -2,7 +2,6 @@ from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +31,7 @@ def get_workers() -> None:
     global workers_id
     with session() as sess:
         users = sess.query(User)
+    if users.all():
         for user in users:
             workers_id.add(user.telegram_id)
 

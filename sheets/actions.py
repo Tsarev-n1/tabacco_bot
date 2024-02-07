@@ -105,7 +105,7 @@ def workshift_open(user: User, sheet_id: str,
     )
 
 
-def open_shop(shop: Shop) -> None:
+def shop_open(shop: Shop) -> None:
     """Создает все таблицы для магазина"""
     sheet = gc.create(
         title=f'{shop.city} {shop.address}',
@@ -143,14 +143,73 @@ def get_category_orders(key: int, sheet_id: str) -> list[str, None]:
     return category_products
 
 
-def create_preorder(category: int, name: str, worksheet_id: str) -> None:
+def preorder_create(
+    category_num: int,
+    preorder_name: str,
+    count: int,
+    worksheet_id: str,
+    parameters: dict = {}
+) -> None:
     """Добавление предзаказа в таблицу"""
 
     sheet = gc.open_by_key(worksheet_id)
     worksheet = sheet.worksheet('Заказы на товар')
 
     keys = list(products.keys())
-    category = keys[category]
+    category = keys[category_num]
     category_cell = worksheet.find(category)
-    
+
     # Дописать поиск, добавление ячеек, цвет
+
+    if category_cell:
+        #  Получаем все значения столбца
+        col_values = worksheet.col_values(category_cell.col)
+        #  Ищем свободную ячейку
+        if not col_values[-1]:
+            row = col_values.index(None) + 1
+        else:
+            #  Добавляем новую строку
+            worksheet.append_row()
+            row = worksheet.row_count
+
+    preorder_cell = gspread.Cell(row, category_cell.col, preorder_name)
+
+    #  Проверяем на каком месте столбец 'Количество' после категории
+    count_col_place = len(products[category][0])
+    preorder_count_cell = gspread.Cell(row, count_col_place, str(count))
+
+    worksheet.update_cells([preorder_cell, preorder_count_cell])
+
+    #  Проверяем дополнительные параметры
+    if parameters:
+        for parameter, value in parameters:
+            parameter_col = (products[category][0].index(parameter)
+                             + 1 + preorder_cell.col)
+            worksheet.update_cell(row, parameter_col, str(value))
+
+    cell_range = (f'{get_char_by_index(preorder_cell.col)}{row}:'
+                  f'{get_char_by_index(preorder_count_cell)}{row}')
+
+    #  Красим новые ячейки
+    format_cell_range(
+        worksheet,
+        CellFormat(
+            backgroundColor=Color(products[category][1]),
+            horizontalAlignment='CENTER'
+        ),
+        name=cell_range
+    )
+
+
+def preorder_update(
+    worksheet_id: str,
+    category_num: int,
+    count: int,
+    preorder_name: str
+) -> None:
+    """Обновление уже готового предзаказа"""
+    pass
+
+
+def preorder_delete() -> None:
+    """Удаление предзаказа"""
