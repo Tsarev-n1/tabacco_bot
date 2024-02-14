@@ -108,3 +108,5 @@ async def shop(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     global workers_id
     workers_id.add(callback.message.chat.id)
+
+#  TODO: Дописать подтверждение админа

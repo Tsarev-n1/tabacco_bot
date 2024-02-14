@@ -2,7 +2,10 @@ import os
 import datetime as dt
 
 import gspread
-from gspread_formatting import format_cell_range, CellFormat, Color
+from gspread_formatting import (
+    format_cell_range, CellFormat,
+    Color, TextFormat
+)
 from sqlalchemy.orm import sessionmaker
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
@@ -75,6 +78,7 @@ def workshift_open(user: User, sheet_id: str,
 
     days_range = '1-15' if date.day <= 15 \
         else f'16-{month_days(date.month)}'
+
     # Поиск крайней левой ячейки месяца и временного отрезка
     today_cell = worksheet.find(f'{months_ru[date.month]}\n({days_range})')
     name_cell = worksheet.find(
@@ -87,6 +91,7 @@ def workshift_open(user: User, sheet_id: str,
             col=today_cell.col + 1,
             value=user.first_name
         )
+
     # Поиск текущей даты
     workshift_cell = worksheet.find(
         f'{date.strftime("%d.%m.%Y")}',
@@ -123,7 +128,7 @@ def shop_open(shop: Shop) -> None:
 
 
 def get_category_orders(key: int, sheet_id: str) -> list[str, None]:
-    """Получает все заказы из категории"""
+    """Получает все предзаказы из категории"""
 
     keys = list(products.keys())
     category = keys[key]
@@ -132,31 +137,30 @@ def get_category_orders(key: int, sheet_id: str) -> list[str, None]:
     worksheet = sheet.worksheet('Заказы на товар')
 
     category_cell = worksheet.find(category)
-    background_color = category_cell.background.color
-    category_products = []
-    next_cell = worksheet.cell(category_cell.row + 1, category_cell.col)
 
-    while next_cell.background.color == background_color:
-        category_products.append(next_cell.value)
-        next_cell = worksheet.cell(next_cell.row + 1, next_cell.col)
+    #  Получаем все значения из столбца и отсеиваем пустые
+    category_products = list(filter(
+        lambda x: x is not None,
+        worksheet.col_values(category_cell)[1:]
+        ))
 
     return category_products
 
 
 def preorder_create(
-    category_num: int,
+    category_pos: int,
     preorder_name: str,
-    count: int,
-    worksheet_id: str,
+    sheet_id: str,
+    count: int = 0,
     parameters: dict = {}
 ) -> None:
     """Добавление предзаказа в таблицу"""
 
-    sheet = gc.open_by_key(worksheet_id)
+    sheet = gc.open_by_key(sheet_id)
     worksheet = sheet.worksheet('Заказы на товар')
 
     keys = list(products.keys())
-    category = keys[category_num]
+    category = keys[category_pos]
     category_cell = worksheet.find(category)
 
     # Дописать поиск, добавление ячеек, цвет
@@ -169,7 +173,7 @@ def preorder_create(
             row = col_values.index(None) + 1
         else:
             #  Добавляем новую строку
-            worksheet.append_row()
+            worksheet.append_row([])
             row = worksheet.row_count
 
     preorder_cell = gspread.Cell(row, category_cell.col, preorder_name)
@@ -202,14 +206,69 @@ def preorder_create(
 
 
 def preorder_update(
-    worksheet_id: str,
-    category_num: int,
+    sheet_id: str,
+    category_pos: int,
     count: int,
-    preorder_name: str
+    order_pos: int
 ) -> None:
     """Обновление уже готового предзаказа"""
-    pass
+
+    sheet = gc.open_by_key(sheet_id)
+    category = list(products.keys())[category_pos]
+    worksheet = sheet.worksheet('Заказы на товар')
+
+    # Получаем название заказа и его ячейку
+    order = get_category_orders(category_pos, sheet_id)[order_pos]
+    order_cell = worksheet.find(order)
+
+    # Получаем номер столбца 'Количество' и значение ячейки
+    # (количество параметров + номер столбца с названием + 1 шаг)
+    count_col = len(products[category][0]) + order_cell.col + 1
+    order_count = int(worksheet.cell(row=order_cell.row, col=count_col).value)
+    updated_order = gspread.Cell(
+        value=order_count+count,
+        row=order_cell.row,
+        col=count_col
+    )
+    worksheet.update_cells([updated_order])
 
 
-def preorder_delete() -> None:
+def preorder_delete(
+    sheet_id: str,
+    category_num: int,
+    preorder_name: str
+) -> None:
     """Удаление предзаказа"""
+
+    sheet = gc.open_by_key(sheet_id)
+    worksheet = sheet.worksheet('Заказы на товар')
+    preorder_cell = worksheet.find(preorder_name)
+
+    # Получаем количество параметров и прибавляем две колонки 'Количество'
+    # и название категории
+    minitable_width = len(list(products.values())[category_num][0]) + 2
+    # Получаем диапазон ячеек в формате A1
+    cells_label_range = (
+            f'{get_char_by_index(preorder_cell.col)}{preorder_cell.row}:'
+            f'{get_char_by_index(preorder_cell.col + minitable_width - 1)}'
+            f'{preorder_cell.row}'
+        )
+    cells_to_remove = []
+    for i in range(minitable_width):
+        cell = worksheet.cell(preorder_cell.row, preorder_cell.col + i)
+        cell.value = ''
+    # Проверяем является ли ячейка крайней
+    if worksheet.cell(preorder_cell.row + 1, preorder_cell.col).value:
+        pass
+    else:
+        format_cell_range(
+            worksheet=worksheet,
+            name=cells_label_range,
+            cell_format=CellFormat(
+             horizontalAlignment='CENTER',
+             backgroundColor=Color(),
+             textFormat=TextFormat(bold=True, fontSize=11)
+            )
+        )
+        worksheet.update_cells([cells_to_remove])
+    # TODO: Дописать удаление ячеек и смещение

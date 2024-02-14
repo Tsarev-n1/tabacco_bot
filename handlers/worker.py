@@ -21,7 +21,11 @@ from .anonymous import workers_id
 from models.models import User, WorkShift, Defective, Spending, Delay, \
     Shop
 from engine import async_engine
-from sheets.actions import workshift_open
+from sheets.actions import (
+    workshift_open, preorder_create,
+    preorder_update
+)
+from sheets.sheets import products
 from bot import bot
 
 
@@ -266,7 +270,8 @@ async def cash_receipt(message: Message, state: FSMContext):
     await state.update_data(photo=photo)
     data = await state.get_data()
     async with async_session() as sess:
-        user = await sess.execute(User).filter(User.telegram_id == message.chat.id)\
+        user = await sess.execute(User)\
+            .filter(User.telegram_id == message.chat.id)\
             .first()
         spent = Spending(
             description=data['description'],
@@ -311,18 +316,31 @@ async def order_current(callback: CallbackQuery, state: FSMContext):
         text='Выберите продукт',
         reply_markup=order_category_keyboard(key, shop.worksheet)
     )
-    # await state.set_state(OrderState.count)
-    # переход в другой state после нажатия кнопки добавить новый
-    #  TODO: Добавить выбор доп параметров, если они есть
+    await state.update_data(
+        category_pos=key,
+        worksheet=shop.worksheet,
+        parameters_set={})
+    await state.set_state(OrderState.select_or_create)
 
 
-@router.callback_query(F.data == 'order_name')
-async def order_name(callback: CallbackQuery):
-    """Добавление нового заказа"""
-    pass
+@router.callback_query(
+    F.data.startswith('order_select'),
+    OrderState.select_or_create
+)
+async def order_select(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбранного предзаказа"""
+
+    order_pos = int(callback.data.split('=')[1])
+    await bot.edit_message_text(
+        text='Выберите количество',
+        chat_id=callback.message.from_user.id,
+        message_id=callback.message.message_id
+    )
+    await state.update_data(order_pos=order_pos)
+    await state.set_state(OrderState.count)
 
 
-@router.callback_query(F.data == 'order_create')
+@router.callback_query(F.data == 'order_create', OrderState.select_or_create)
 async def order_create(callback: CallbackQuery, state: FSMContext):
     """Добавление нового заказа"""
     await bot.edit_message_text(
@@ -330,22 +348,80 @@ async def order_create(callback: CallbackQuery, state: FSMContext):
         message_id=callback.message.message_id,
         text='Название продукта.'
     )
-    await state.set_state(OrderState.create_order())
+    await state.set_state(OrderState.name)
 
 
-@router.message(OrderState.create_order, F.text)
+@router.message(OrderState.name, F.text)
 async def order_name(message: Message, state: FSMContext):
     """Создание заказа"""
-    pass
+
+    #  Получение параметров, либо переход к количеству
+    data = await state.get_data()
+    parameters = list(products.values())[data['category_pos']][0]
+
+    new_state = OrderState.parameters if parameters else OrderState.count
+    answer = parameters[0] if parameters else 'Выберите количество'
+
+    await state.update_data(
+        parameters=parameters,
+        name=message.text,
+        create=True  # Значение о том, что заказ создавался
+    )
+    await message.answer(
+        answer
+    )
+    await state.set_state(new_state)
 
 
-@router.callback_query(F.data.startswith('order_'), OrderState.count)
+@router.message(F.text, OrderState.parameters)
+async def order_parameters(message: Message, state: FSMContext):
+    """Установка параметров заказа"""
+
+    data = await state.get_data()
+    parameters = data['parameters']
+    parameter = parameters.pop(0)
+    new_parameter = {parameter: message.text}
+    await state.update_data({
+        'parameters_set': data['parameters_set'].update(new_parameter)
+    })
+    if parameters:
+        await message.answer(
+            parameters[0]
+        )
+        await state.update_data(parameters=parameters)
+    else:
+        await message.answer(
+            'Выберите количество'
+        )
+        await state.set_state(OrderState.count)
+
+
+@router.message(F.text.func(lambda text: int(text) > 0), OrderState.count)
 async def order_count(message: Message, state: FSMContext):
     """Количество товара"""
-
-    await state.update_data(count=message.text)
     data = await state.get_data()
+
+    # Проверяем созданный заказ или уже имеющийся
+    create = data.get('create')
+    if create:
+        # Создаем предзаказ
+        preorder_create(
+            category_pos=data['category_pos'],
+            preorder_name=data['name'],
+            sheet_id=data['worksheet'],
+            count=int(message.text),
+            parameters=data['parameters_set']
+        )
+        message = 'Заказ создан'
+    else:
+        preorder_update(
+            sheet_id=data['worksheet'],
+            category_pos=data['category_pos'],
+            count=data['count'],
+            order_pos=data['order_pos']
+            )
+        message = 'Заказ обновлен'
     #  TODO: при добавлении нового значения в категорию вызвать другую функцию
-    # Отправить данные сразу в гугл таблицы
+    #  TODO: При создании и добавлении вызывать 1 и ту же функцию
     # Покрасить в цвет таблицы, добавить строку в случае чего
     pass

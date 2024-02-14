@@ -83,8 +83,10 @@ def create_cash_worksheet(sheet: gspread.Spreadsheet) -> None:
 
     # Редактируем первый столбец с датой
     format_cell_range(worksheet, f'A1:A{worksheet.row_count}',
-                      TextFormat(bold=True),
-                      CellFormat(horizontalAlignment='CENTER'))
+                      CellFormat(
+                        horizontalAlignment='CENTER',
+                        textFormat=TextFormat(bold=True))
+                    )
 
     date_cells = worksheet.range(2, 1, worksheet.row_count, 1)
 
@@ -96,10 +98,13 @@ def create_cash_worksheet(sheet: gspread.Spreadsheet) -> None:
 
     # Заливаем первую строку
 
-    format_cell_range(worksheet, f'A1:{get_last_char()}1',
-                      CellFormat(backgroundColor=Color(255, 192, 203),
-                                 horizontalAlignment='CENTER'),  # Розовый
-                      TextFormat(bold=True, fontSize=11))
+    format_cell_range(
+        worksheet, f'A1:{get_last_char()}1',
+        CellFormat(
+            backgroundColor=Color(255, 192, 203),
+            horizontalAlignment='CENTER',  # Розовый
+            textFormat=TextFormat(bold=True, fontSize=11)),
+        )
 
     # Добавляем заголовки
 
@@ -155,10 +160,10 @@ def create_work_schedule_sheet(sheet: gspread.Spreadsheet) -> None:
         format_cell_range(
             worksheet,
             f'A{row}:R{row}',
-            CellFormat(backgroundColor=Color(255, 192, 203),
-                       horizontalAlignment='CENTER'),
-            TextFormat(bold=True)  # Розовый
-        )
+            CellFormat(backgroundColor=Color(255, 192, 203),  # Розовый
+                       horizontalAlignment='CENTER',
+                       textFormat=TextFormat(bold=True)),
+            )
 
         row += 1
         # Объединяем и выставляем параметры ячеек месяца и выручки
@@ -172,9 +177,9 @@ def create_work_schedule_sheet(sheet: gspread.Spreadsheet) -> None:
                     verticalAlignment='CENTER',
                     backgroundColor=Color(173, 216, 163)  # Зеленый
                     if column == 'X'
-                    else None),
-                TextFormat(bold=True, fontSize=12)
-            )
+                    else None,
+                    textFormat=TextFormat(bold=True, fontSize=12))
+                )
 
             # Записываем месяц с датами
             if column == 'A':
@@ -191,8 +196,8 @@ def create_work_schedule_sheet(sheet: gspread.Spreadsheet) -> None:
         format_cell_range(
             worksheet,
             f'B{row}:B{row+2}',
-            CellFormat(horizontalAlignment='CENTER'),
-            TextFormat(bold=True)
+            CellFormat(horizontalAlignment='CENTER',
+                       textFormat=TextFormat(bold=True))
         )
 
         #  Редактируем ячейки смены
@@ -236,9 +241,9 @@ def create_spendings_month(sheet: gspread.Spreadsheet, month: int = 1) -> None:
         'A1:C1',
         CellFormat(
             horizontalAlignment='CENTER',
-            backgroundColor=Color(255, 192, 203)
-        ),
-        TextFormat(bold=True, fontSize=11)
+            backgroundColor=Color(255, 192, 203),
+            textFormat=TextFormat(bold=True, fontSize=11)
+        )       
     )
 
     data = ['Дата', 'Информация', 'Сумма']
@@ -273,11 +278,11 @@ def create_orders(sheet: gspread.Spreadsheet) -> None:
         old_count = column_count
 
         format_cell_range(
-            worksheet,
-            CellFormat(
+            worksheet=worksheet,
+            cell_format=CellFormat(
                 backgroundColor=Color(color),
-                horizontalAlignment='CENTER'
+                horizontalAlignment='CENTER',
+                textFormat=TextFormat(bold=True, fontSize=11)
             ),
-            TextFormat(bold=True, fontSize=11),
-            name=cell_range
+            name=cell_range,
         )

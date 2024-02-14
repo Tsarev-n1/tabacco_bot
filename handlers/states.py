@@ -45,4 +45,7 @@ class OrderState(StatesGroup):
     product = State()
     count = State()
     create_order = State()
+    name = State()
+    parameters = State()
     current = State()
+    select_or_create = State()  # Промежуточное состояние
