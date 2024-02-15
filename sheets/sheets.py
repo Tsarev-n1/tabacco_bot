@@ -85,8 +85,7 @@ def create_cash_worksheet(sheet: gspread.Spreadsheet) -> None:
     format_cell_range(worksheet, f'A1:A{worksheet.row_count}',
                       CellFormat(
                         horizontalAlignment='CENTER',
-                        textFormat=TextFormat(bold=True))
-                    )
+                        textFormat=TextFormat(bold=True)))
 
     date_cells = worksheet.range(2, 1, worksheet.row_count, 1)
 
@@ -243,7 +242,7 @@ def create_spendings_month(sheet: gspread.Spreadsheet, month: int = 1) -> None:
             horizontalAlignment='CENTER',
             backgroundColor=Color(255, 192, 203),
             textFormat=TextFormat(bold=True, fontSize=11)
-        )       
+        )
     )
 
     data = ['Дата', 'Информация', 'Сумма']
@@ -274,9 +273,9 @@ def create_orders(sheet: gspread.Spreadsheet) -> None:
 
         cell_range = f'{get_char_by_index(old_count)}1:' \
             f'{get_char_by_index(column_count)}1'
-
         old_count = column_count
 
+        # Форматируем головную строку(Название, Параметры, Количество)
         format_cell_range(
             worksheet=worksheet,
             cell_format=CellFormat(

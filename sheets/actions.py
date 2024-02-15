@@ -247,28 +247,31 @@ def preorder_delete(
     # Получаем количество параметров и прибавляем две колонки 'Количество'
     # и название категории
     minitable_width = len(list(products.values())[category_num][0]) + 2
-    # Получаем диапазон ячеек в формате A1
-    cells_label_range = (
-            f'{get_char_by_index(preorder_cell.col)}{preorder_cell.row}:'
-            f'{get_char_by_index(preorder_cell.col + minitable_width - 1)}'
-            f'{preorder_cell.row}'
-        )
-    cells_to_remove = []
-    for i in range(minitable_width):
-        cell = worksheet.cell(preorder_cell.row, preorder_cell.col + i)
-        cell.value = ''
-    # Проверяем является ли ячейка крайней
-    if worksheet.cell(preorder_cell.row + 1, preorder_cell.col).value:
-        pass
-    else:
-        format_cell_range(
-            worksheet=worksheet,
-            name=cells_label_range,
-            cell_format=CellFormat(
-             horizontalAlignment='CENTER',
-             backgroundColor=Color(),
-             textFormat=TextFormat(bold=True, fontSize=11)
+
+    last_row = len(list(filter(
+            lambda x: x is not None,
+            worksheet.col_values(col=preorder_cell.col)
+        )))
+
+    cells_to_remove = [
+        gspread.Cell(row=last_row, col=preorder_cell.col + j, value=None)
+        for j in range(minitable_width)
+    ]
+
+    # Если ячейка не крайняя снизу
+    if not worksheet.cell(preorder_cell.row + 1, preorder_cell.col).value:
+        # Смещаем все нижние значения на позицию выше
+        for col_offset in range(minitable_width):
+            parameters: list = worksheet.col_values(
+                preorder_cell.col+col_offset
             )
-        )
-        worksheet.update_cells([cells_to_remove])
-    # TODO: Дописать удаление ячеек и смещение
+            parameters = list(filter(lambda x: x is not None))
+            for pos, parameter in enumerate(
+                parameters[preorder_cell.row:], start=1
+            ):
+                worksheet.update_cell(
+                    row=preorder_cell.row + pos,
+                    col=preorder_cell.col + col_offset,
+                    value=parameter
+                )
+    worksheet.update_cells(cells_to_remove)
