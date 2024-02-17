@@ -49,25 +49,6 @@ gc = gspread.authorize(credentials)
 Session = sessionmaker(bind=engine)
 
 
-class AccessDeniedException(Exception):
-    pass
-
-
-def check_permission(is_admin: bool = False):
-    """Проверка прав доступа"""
-    def decorator(func):
-        def wrapper(user, worksheet, *args, **kwargs):
-            with Session() as sess:
-                user_shop = user.shop
-                current_shop = sess.query(Shop)\
-                    .filter(Shop.wokrsheet == worksheet).first()
-            if user.is_admin == is_admin and user_shop is current_shop:
-                return func(*args, **kwargs)
-            raise AccessDeniedException('Нет прав доступа')
-        return wrapper
-    return decorator
-
-
 def workshift_open(user: User, sheet_id: str,
                    open: bool = True, money: int = 0) \
         -> None:
@@ -275,3 +256,28 @@ def preorder_delete(
                     value=parameter
                 )
     worksheet.update_cells(cells_to_remove)
+
+
+def spendings_add(
+    worksheet_id: str,
+    spending_name: str,
+    money: int
+):
+    """Добавление расходов"""
+    sheet = gc.open_by_key(worksheet_id)
+    today = dt.date.today()
+    worksheet = sheet.worksheet(f'Расходы {months_ru[today.month]}'
+                                f'{today.year}')
+
+    # Находим крайнюю строку
+    try:
+        empty_row = worksheet.col_values().index(None) + 1
+
+    except ValueError:
+        worksheet.add_rows(1)
+        empty_row = worksheet.row_count
+
+    generator = iter([today, spending_name, money])
+    cells = [gspread.Cell(row=empty_row, col=i, value=next(generator))
+             for i in range(3)]
+    worksheet.update_cells(cells)

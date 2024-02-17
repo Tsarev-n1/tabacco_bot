@@ -23,7 +23,7 @@ from models.models import User, WorkShift, Defective, Spending, Delay, \
 from engine import async_engine
 from sheets.actions import (
     workshift_open, preorder_create,
-    preorder_update
+    preorder_update, spendings_add
 )
 from sheets.sheets import products
 from bot import bot
@@ -266,11 +266,12 @@ async def money_spent(message: Message, state: FSMContext):
 async def cash_receipt(message: Message, state: FSMContext):
     """Получение фото чека"""
 
-    photo = message.photo[-1].file_id
-    await state.update_data(photo=photo)
+    photo = message.photo[-1]
+    await state.update_data(photo=photo.file_id)
     data = await state.get_data()
     async with async_session() as sess:
         user = await sess.execute(User)\
+            .options(joinedload(Shop)) \
             .filter(User.telegram_id == message.chat.id)\
             .first()
         spent = Spending(
@@ -282,6 +283,11 @@ async def cash_receipt(message: Message, state: FSMContext):
         )
         sess.add(spent)
         sess.commit()
+    spendings_add(
+        worksheet_id=user.shop.worksheet,
+        spending_name=data['description'],
+        money=data['money']
+    )
     await message.answer(
         'Запрос принят'
     )
@@ -421,7 +427,5 @@ async def order_count(message: Message, state: FSMContext):
             order_pos=data['order_pos']
             )
         message = 'Заказ обновлен'
-    #  TODO: при добавлении нового значения в категорию вызвать другую функцию
-    #  TODO: При создании и добавлении вызывать 1 и ту же функцию
-    # Покрасить в цвет таблицы, добавить строку в случае чего
-    pass
+
+    await message.answer(message)
